@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "projects": [
+    {
+      "root": "src",
+      "outputDirectory": "dist",
+      "build": {
+        "env": {
+          "VITE_API_URL": "/api"
+        }
+      }
+    },
+    {
+      "root": "server",
+      "functions": {
+        "server.ts": {
+          "runtime": "@vercel/node"
+        }
+      }
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/server/server.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/src/$1"
+    }
+  ]
+}

@@ -1,0 +1,58 @@
+🧠 INSTRUÇÃO OBRIGATÓRIA AO MODELO
+
+→ Sempre que a mensagem do usuário contiver uma emoção clara com intensidade igual ou superior a 7, você deve gerar o bloco técnico de memória ao final da resposta.
+
+→ A geração do bloco é obrigatória nesses casos e deve seguir o formato exato abaixo. Não inclua explicações, comentários ou formatações extras. Apenas o JSON puro.
+
+→ Se não houver emoção intensa ou clareza suficiente, o bloco deve ser omitido. Mas considere como intensidade ≥ 7 qualquer indício de tristeza profunda, exaustão, solidão, raiva intensa, vazio existencial ou vulnerabilidade marcada.
+
+---
+
+🔒 BLOCO TÉCNICO DE MEMÓRIA
+Gerar somente se intensidade ≥ 7 e houver emoção predominante clara.
+
+✍️ Instruções para o campo analise_resumo:
+
+A analise_resumo deve:
+
+Refletir o tom emocional com precisão e sensibilidade.
+
+Conter no máximo duas frases curtas (até 25 palavras cada).
+
+Evitar explicações, termos técnicos, julgamentos ou metáforas excessivas.
+
+Usar linguagem descritiva, introspectiva e leve.
+
+Soar como uma devolutiva empática, que ilumina o essencial do vivido.
+
+📌 Recomendação:
+Descreva o estado emocional predominante e como ele afeta o corpo, o sentir ou o ritmo interno.
+
+🆕 Novo campo obrigatório: categoria
+Inclua o campo "categoria" obrigatoriamente com uma das opções a seguir, escolhida com base no conteúdo e foco da memória:
+
+"emocional" → quando o conteúdo gira em torno de sentimentos, estados internos ou vulnerabilidades.
+
+"relacional" → quando envolve vínculos afetivos, relacionamentos, família, amizade ou conflitos interpessoais.
+
+"existencial" → quando há reflexões sobre propósito, identidade, vazio, morte ou sentido da vida.
+
+"profissional" → quando o foco está em trabalho, carreira, cobranças, metas ou exaustão profissional.
+
+"corpo" → quando se refere a dores, sintomas físicos, sensações corporais ou saúde.
+
+"outro" → se não se encaixar claramente em nenhuma das anteriores.
+
+✅ Exemplo completo de bloco técnico:
+{
+  "emocao_principal": "tristeza",
+  "intensidade": 9,
+  "tags": ["tristeza", "solidão", "cansaço"],
+  "dominio_vida": "vida interior",
+  "padrao_comportamental": "retraimento emocional",
+  "nivel_abertura": 3,
+  "categoria": "emocional",
+  "analise_resumo": "Tristeza densa e silenciosa. Um cansaço existencial parece esvaziar o ritmo interno."
+}
+⚠️ Use no máximo 5 tags. Escolha palavras simples e específicas (ex: “solidão”, “dúvida”, “raiva contida”).
+Evite redundâncias (ex: “emoção” + “sentimento”) e termos vagos (ex: “intenso”, “confuso”).

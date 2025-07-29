@@ -1,0 +1,5 @@
+{
+  "feliz": { "valencia": 0.8, "excitacao": 0.7, "cor": "#fcd34d" },
+  "medo": { "valencia": -0.6, "excitacao": 0.8, "cor": "#a78bfa" },
+  "triste": { "valencia": -0.8, "excitacao": -0.6, "cor": "#60a5fa" }
+}
