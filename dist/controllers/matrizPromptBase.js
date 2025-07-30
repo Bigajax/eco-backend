@@ -59,24 +59,28 @@ exports.matrizPromptBase = {
     },
     condicoesEspeciais: {
         'METODO_VIVA.txt': {
-            descricao: "Só incluir se intensidade >= 7 e abertura emocional = 2 ou 3",
-            regra: "intensidade>=7 && (nivel==2 || nivel==3)"
+            descricao: 'Só incluir se intensidade >= 7 e abertura emocional = 2 ou 3',
+            regra: 'intensidade>=7 && (nivel==2 || nivel==3)'
         },
         'META_REFLEXAO.txt': {
-            descricao: "Somente se intensidade >= 6 em nível 3, mas reduz para 2 o nível de abertura",
-            regra: "intensidade>=6 && (nivel==2 || nivel==3)"
+            descricao: 'Somente se intensidade >= 6 em nível 3, mas reduz para 2 o nível de abertura',
+            regra: 'intensidade>=6 && (nivel==2 || nivel==3)'
         },
         'CONVITE_PARA_EXPLORACAO.txt': {
-            descricao: "Somente se intensidade >= 5 e abertura emocional >= 2",
-            regra: "intensidade>=5 && nivel>=2"
+            descricao: 'Somente se intensidade >= 5 e abertura emocional >= 2',
+            regra: 'intensidade>=5 && nivel>=2'
         },
         'IDENTIFICACAO_PADROES.txt': {
-            descricao: "Somente se intensidade >= 5 e abertura emocional >= 2",
-            regra: "intensidade>=5 && nivel>=2"
+            descricao: 'Somente se intensidade >= 5 e abertura emocional >= 2',
+            regra: 'intensidade>=5 && nivel>=2'
         },
         'NARRATIVA_SOFISTICADA.txt': {
-            descricao: "Somente se intensidade >= 5 e abertura emocional >= 2",
-            regra: "intensidade>=5 && nivel>=2"
+            descricao: 'Somente se intensidade >= 5 e abertura emocional >= 2',
+            regra: 'intensidade>=5 && nivel>=2'
+        },
+        'BLOCO_TECNICO_MEMORIA.txt': {
+            descricao: 'Somente se intensidade >= 7 e abertura emocional >= 2',
+            regra: 'intensidade>=7 && nivel>=2'
         }
     }
 };

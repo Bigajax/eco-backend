@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.getPromptEcoPreview = void 0;
 exports.montarContextoEco = montarContextoEco;
 const path_1 = __importDefault(require("path"));
 const promises_1 = __importDefault(require("fs/promises"));
@@ -19,6 +20,23 @@ const buscarReferenciasSemelhantes_1 = require("../services/buscarReferenciasSem
 const buscarEncadeamentos_1 = require("../services/buscarEncadeamentos");
 const matrizPromptBase_1 = require("./matrizPromptBase");
 const tiktoken_1 = require("@dqbd/tiktoken");
+const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
+function shouldLog(level) {
+    if (level === 'debug' && LOG_LEVEL !== 'debug')
+        return false;
+    return true;
+}
+function logInfo(...args) {
+    if (shouldLog('info'))
+        console.log('[ECO]', ...args);
+}
+function logWarn(...args) {
+    console.warn('[ECO][WARN]', ...args);
+}
+function logDebug(...args) {
+    if (shouldLog('debug'))
+        console.debug('[ECO][DEBUG]', ...args);
+}
 // ----------------------------------
 // UTILS
 // ----------------------------------
@@ -106,7 +124,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
     const saudacoesCurtaLista = ['oi', 'ola', 'olá', 'bom dia', 'boa tarde', 'boa noite'];
     const isSaudacaoCurta = saudacoesCurtaLista.some((saud) => entradaSemAcentos.startsWith(saud));
     if (isSaudacaoCurta) {
-        console.log('🌱 Detecção de saudação curta. Aplicando regra exclusiva de saudação.');
+        logInfo('Detecção de saudação curta. Aplicando regra de saudação.');
         try {
             let saudacaoConteudo = await promises_1.default.readFile(path_1.default.join(modulosDir, 'REGRA_SAUDACAO.txt'), 'utf-8');
             if (userName) {
@@ -115,7 +133,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
             return `📶 Entrada detectada como saudação breve.\n\n[Módulo REGRA_SAUDACAO]\n${saudacaoConteudo.trim()}\n\n[Módulo eco_forbidden_patterns]\n${forbidden.trim()}`;
         }
         catch (e) {
-            console.warn(`⚠️ Falha ao carregar módulo REGRA_SAUDACAO.txt:`, e.message);
+            logWarn('Falha ao carregar módulo REGRA_SAUDACAO.txt:', e.message);
             return `⚠️ Erro ao carregar REGRA_SAUDACAO.`;
         }
     }
@@ -134,7 +152,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
             nivel = 1;
     }
     if (nivel < 1 || nivel > 3) {
-        console.warn('⚠️ Nível de abertura ambíguo ou inválido. Aplicando fallback para nível 1.');
+        logWarn('Nível de abertura ambíguo ou inválido. Aplicando fallback para nível 1.');
         nivel = 1;
     }
     const desc = nivel === 1 ? 'superficial' : nivel === 2 ? 'reflexiva' : 'profunda';
@@ -151,7 +169,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
     // ----------------------------------
     let memsUsadas = mems;
     if (forcarMetodoViva && blocoTecnicoForcado) {
-        console.log('✅ Ativando modo forçado METODO_VIVA com bloco técnico fornecido.');
+        logInfo('Ativando modo forçado METODO_VIVA com bloco técnico fornecido.');
         memsUsadas = [{
                 resumo_eco: blocoTecnicoForcado.analise_resumo ?? ultimaMsg ?? "",
                 intensidade: Number(blocoTecnicoForcado.intensidade ?? 0),
@@ -161,7 +179,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
     }
     else {
         if (nivel === 1) {
-            console.log('⚠️ Ignorando embeddings/memórias por abertura superficial.');
+            logInfo('Ignorando embeddings/memórias por abertura superficial.');
             memsUsadas = [];
         }
     }
@@ -183,17 +201,17 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
         if (heuristicasFuzzy?.length > 0) {
             heuristicaAtiva = heuristicasFuzzy[0];
             if (heuristicaAtiva?.arquivo) {
-                console.log(`✨ Heurística fuzzy ativada: ${heuristicaAtiva.arquivo} (similaridade mais alta)`);
+                logInfo(`Heurística fuzzy ativada: ${heuristicaAtiva.arquivo} (similaridade mais alta)`);
             }
         }
         else {
-            console.log('ℹ️ Nenhuma heurística fuzzy ativada.');
+            logInfo('Nenhuma heurística fuzzy ativada.');
         }
     }
     if (entrada) {
         const queryEmbedding = await (0, embeddingService_1.embedTextoCompleto)(entrada, "🔍 heuristica");
         if (process.env.NODE_ENV && process.env.NODE_ENV.trim() !== 'production') {
-            console.log("📌 Vetor de embedding (sumário):", queryEmbedding.slice(0, 3), "...");
+            logDebug("Embedding gerado (sumário):", queryEmbedding.slice(0, 3), "...");
         }
     }
     const heuristicasEmbedding = entrada
@@ -201,10 +219,10 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
         : [];
     if (process.env.NODE_ENV && process.env.NODE_ENV.trim() !== 'production') {
         if (heuristicasEmbedding?.length) {
-            console.log(`✅ ${heuristicasEmbedding.length} heurística(s) cognitivas embedding encontradas.`);
+            logInfo(`${heuristicasEmbedding.length} heurística(s) cognitivas embedding encontradas.`);
         }
         else {
-            console.log('ℹ️ Nenhuma heurística embedding encontrada.');
+            logInfo('Nenhuma heurística embedding encontrada.');
         }
     }
     const modulosFilosoficosAtivos = filosoficosTriggers_1.filosoficosTriggerMap.filter((f) => f?.arquivo && f?.arquivo.trim() && f.gatilhos.some((g) => entradaSemAcentos.includes(normalizarTexto(g))));
@@ -215,7 +233,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
             let MIN_SIMILARIDADE = 0.55;
             const consultaParaLembranca = /lembr|record|memória|memorias|memoria|recorda/i.test(entrada);
             if (consultaParaLembranca) {
-                console.log("🔎 Detecção de pergunta sobre lembrança: reduzindo threshold.");
+                logInfo("Detecção de pergunta sobre lembrança: reduzindo threshold.");
                 MIN_SIMILARIDADE = 0.3;
             }
             const [memorias, referencias] = await Promise.all([
@@ -227,18 +245,18 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
             memsUsadas = [...memoriasFiltradas, ...referenciasFiltradas];
             const memoriaIntensa = memsUsadas.find(m => (m.intensidade ?? 0) >= 7 && (m.similaridade ?? 0) >= MIN_SIMILARIDADE);
             if (memoriaIntensa) {
-                console.log("✅ Ajuste minimalista: usando memória intensa recuperada sem clonar entrada.");
+                logInfo("Ajuste minimalista: usando memória intensa recuperada sem clonar entrada.");
                 memsUsadas = [memoriaIntensa, ...memsUsadas.filter(m => m !== memoriaIntensa)];
             }
             if (process.env.NODE_ENV && process.env.NODE_ENV.trim() !== 'production') {
                 if (memsUsadas?.length) {
-                    console.log(`🧠 Memórias finais usadas no contexto:`);
+                    logDebug(`Memórias finais:`, memsUsadas);
                     memsUsadas.forEach((m, idx) => {
-                        console.log(`• [${idx + 1}] "${m.resumo_eco.slice(0, 30)}..." | Intensidade: ${m.intensidade} | Similaridade: ${m.similaridade}`);
+                        logDebug(`• [${idx + 1}] "${m.resumo_eco.slice(0, 30)}..." | Intensidade: ${m.intensidade} | Similaridade: ${m.similaridade}`);
                     });
                 }
                 else {
-                    console.log('ℹ️ Nenhuma memória usada no contexto.');
+                    logDebug('ℹ️ Nenhuma memória usada no contexto.');
                 }
             }
             if (tagsAlvo.length) {
@@ -246,7 +264,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
             }
         }
         catch (e) {
-            console.warn("⚠️ Erro ao buscar memórias/referências:", e.message);
+            logWarn("Erro ao buscar memórias/referências:", e.message);
             memsUsadas = [];
         }
     }
@@ -267,7 +285,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
                 encadeamentos = encadeamentos.slice(0, 3);
         }
         catch (e) {
-            console.warn("⚠️ Erro ao buscar encadeamentos:", e.message);
+            logWarn("Erro ao buscar encadeamentos:", e.message);
         }
     }
     // ----------------------------------
@@ -276,13 +294,13 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
     const modulosAdic = [];
     const modulosInseridos = new Set();
     const inserirModuloUnico = async (arquivo, tipo) => {
-        console.log(`[DEBUG inserirModuloUnico] tipo=${tipo} | arquivo=${arquivo}`);
+        logDebug(`Inserindo módulo`, { tipo, arquivo });
         if (!arquivo || !arquivo.trim()) {
-            console.warn(`⚠️ Ignorando chamada para inserirModuloUnico com arquivo inválido: "${arquivo}" (tipo: ${tipo})`);
+            logWarn(`Ignorando chamada para inserirModuloUnico com arquivo inválido: "${arquivo}" (tipo: ${tipo})`);
             return;
         }
         if (modulosInseridos.has(arquivo)) {
-            console.log(`ℹ️ Módulo já inserido anteriormente: ${arquivo}`);
+            logInfo(`Módulo já inserido anteriormente: ${arquivo}`);
             return;
         }
         const pastasPossiveis = [
@@ -299,7 +317,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
                 const conteudo = await promises_1.default.readFile(caminho, 'utf-8');
                 modulosAdic.push(`\n\n[Módulo ${tipo} → ${arquivo}]\n${conteudo.trim()}`);
                 modulosInseridos.add(arquivo);
-                console.log(`✅ Módulo carregado de: ${caminho}`);
+                logInfo(`Módulo carregado: ${caminho}`);
                 encontrado = true;
                 break;
             }
@@ -308,7 +326,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
             }
         }
         if (!encontrado) {
-            console.warn(`⚠️ Falha ao carregar módulo ${arquivo}: não encontrado em nenhuma pasta`);
+            logWarn(`Falha ao carregar módulo ${arquivo}: não encontrado em nenhuma pasta`);
         }
     };
     // ----------------------------------
@@ -323,14 +341,14 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
     const nivelPrompts = (matrizPromptBase_1.matrizPromptBase.byNivel[nivel] ?? [])
         .filter((arquivo) => {
         if (!arquivo || !arquivo.trim()) {
-            console.warn(`⚠️ Ignorando arquivo vazio ou inválido na matrizPromptBase.byNivel: "${arquivo}"`);
+            logWarn(`Ignorando arquivo vazio ou inválido na matrizPromptBase.byNivel: "${arquivo}"`);
             return false;
         }
         const intensidadeMin = matrizPromptBase_1.matrizPromptBase.intensidadeMinima?.[arquivo];
         if (typeof intensidadeMin === 'number') {
             const temIntensa = memsUsadas?.some(mem => (mem.intensidade ?? 0) >= intensidadeMin);
             if (!temIntensa) {
-                console.log(`⚠️ Ignorando ${arquivo} por intensidade < ${intensidadeMin}`);
+                logInfo(`Ignorando ${arquivo} por intensidade < ${intensidadeMin}`);
                 return false;
             }
         }
@@ -348,20 +366,38 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
                 ativa = eval(regraAvaliavel);
             }
             catch (e) {
-                console.warn(`⚠️ Erro ao avaliar regra para ${arquivo}:`, regraAvaliavel, e.message);
+                logWarn(`Erro ao avaliar regra`, { arquivo, regraAvaliavel, erro: e.message });
                 return false;
             }
-            console.log(`🧭 Avaliando condição para ${arquivo}:`, `regra='${condicao.regra}'`, `-> intensidade=${intensidade}, nivel=${nivelAbertura}`, `-> resultado=${ativa}`);
+            logDebug(`Avaliando condição para ${arquivo}:`, `regra='${condicao.regra}'`, `-> intensidade=${intensidade}, nivel=${nivelAbertura}`, `-> resultado=${ativa}`);
             if (!ativa) {
-                console.log(`⚠️ Ignorando ${arquivo} por condição especial não satisfeita: ${condicao.descricao}`);
+                logInfo(`Ignorando ${arquivo} por condição não satisfeita: ${condicao.descricao}`);
                 return false;
             }
         }
         return true;
     });
-    console.log('📌 [DEBUG] NivelPrompts (filtrados):', JSON.stringify(nivelPrompts, null, 2));
-    console.log('📌 [DEBUG] Nivel atual:', nivel);
-    console.log('📌 [DEBUG] Memórias usadas:', JSON.stringify(memsUsadas, null, 2));
+    // ---- Novo debug simplificado ----
+    const nivelDescricao = nivel === 1 ? 'superficial' : nivel === 2 ? 'reflexivo' : 'profundo';
+    logInfo(`Nível de abertura: ${nivelDescricao} (${nivel})`);
+    const modulosUsados = modulosAdic
+        .map((m) => {
+        const match = m.match(/\[Módulo.*→ (.*?)\]/);
+        return match ? match[1] : null;
+    })
+        .filter(Boolean);
+    logInfo(`Módulos incluídos (${modulosUsados.length}):`, modulosUsados);
+    if (memsUsadas && memsUsadas.length > 0) {
+        const memsResumo = memsUsadas.map((m, i) => {
+            const texto = typeof m.resumo_eco === 'string' ? m.resumo_eco : '(sem resumo)';
+            return {
+                idx: i + 1,
+                resumo: texto.slice(0, 50).replace(/\n/g, ' ') + (texto.length > 50 ? '...' : ''),
+                intensidade: m.intensidade
+            };
+        });
+        logInfo(`Memórias usadas (${memsResumo.length}):`, memsResumo);
+    }
     // ----------------------------------
     // Heurísticas Cognitivas
     // ----------------------------------
@@ -411,7 +447,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
                     carregado = true;
                 }
                 catch (e) {
-                    console.warn(`⚠️ Não encontrado em modulos_emocionais: ${rel}`);
+                    logWarn(`Não encontrado em modulos_emocionais: ${rel}`);
                 }
                 if (!carregado) {
                     try {
@@ -419,16 +455,16 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
                         carregado = true;
                     }
                     catch (e) {
-                        console.warn(`⚠️ Não encontrado em modulos_filosoficos/estoicos: ${rel}`);
+                        logWarn(`Não encontrado em modulos_filosoficos/estoicos: ${rel}`);
                     }
                 }
                 if (!carregado) {
                     try {
                         await inserirModuloUnico(rel, 'Relacionado');
-                        console.log(`✅ Fallback bem-sucedido em modulos_filosoficos para: ${rel}`);
+                        logInfo(`Fallback bem-sucedido em modulos_filosoficos para: ${rel}`);
                     }
                     catch (e) {
-                        console.warn(`⚠️ Falha ao carregar módulo relacionado em qualquer pasta: ${rel}`);
+                        logWarn(`Falha ao carregar módulo relacionado em qualquer pasta: ${rel}`);
                     }
                 }
             }
@@ -462,7 +498,7 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
         modulosAdic.push(`\n\n[Módulo: MEMORIAS_NO_CONTEXTO]\n${memoriaInstrucoes.trim()}`);
     }
     catch (e) {
-        console.warn('⚠️ Falha ao carregar MEMORIAS_NO_CONTEXTO.txt:', e.message);
+        logWarn('Falha ao carregar MEMORIAS_NO_CONTEXTO.txt:', e.message);
     }
     const instrucoesFinais = `
 ⚠️ INSTRUÇÃO AO MODELO:
@@ -478,28 +514,38 @@ async function montarContextoEco({ perfil, ultimaMsg, userId, userName, mems, fo
     // ----------------------------------
     // MONTAGEM FINAL
     // ----------------------------------
-    const promptFinal = `${contexto.trim()}\n${modulosAdic.join('\n')}`.trim();
+    let promptFinal = `${contexto.trim()}\n${modulosAdic.join('\n')}`.trim();
     try {
-        const enc = await (0, tiktoken_1.encoding_for_model)("cl100k_base");
-        const numTokens = enc.encode(promptFinal).length;
-        console.log(`⚡️ Tokens estimados no prompt: ~${numTokens}`);
+        const enc = await (0, tiktoken_1.encoding_for_model)("gpt-4");
+        let tokens = enc.encode(promptFinal);
+        const numTokens = tokens.length;
+        logInfo(`Tokens estimados: ~${numTokens}`);
+        const MAX_PROMPT_TOKENS = 8000;
+        if (numTokens > MAX_PROMPT_TOKENS) {
+            logWarn(`Prompt acima do limite (${MAX_PROMPT_TOKENS} tokens). Aplicando corte.`);
+            tokens = tokens.slice(0, MAX_PROMPT_TOKENS - 100);
+            promptFinal = new TextDecoder().decode(enc.decode(tokens));
+        }
         enc.free();
     }
     catch (error) {
-        console.warn(`⚠️ Falha ao contar tokens:`, error.message);
+        logWarn(`Falha ao cortar tokens:`, error.message);
     }
-    // ----------------------------------
-    // EXPRESS HANDLER
-    // ----------------------------------
-    export const getPromptEcoPreview = async (_req, res) => {
-        try {
-            const promptFinal = await montarContextoEco({});
-            res.json({ prompt: promptFinal });
-        }
-        catch (err) {
-            console.error('❌ Erro ao montar prompt:', err);
-            res.status(500).json({ error: 'Erro ao montar o prompt' });
-        }
-    };
+    // ✅ FECHAMENTO DA FUNÇÃO PRINCIPAL
+    return promptFinal;
 }
+// ----------------------------------
+// EXPRESS HANDLER
+// ----------------------------------
+const getPromptEcoPreview = async (_req, res) => {
+    try {
+        const promptFinal = await montarContextoEco({});
+        res.json({ prompt: promptFinal });
+    }
+    catch (err) {
+        logWarn('❌ Erro ao montar prompt:', err);
+        res.status(500).json({ error: 'Erro ao montar o prompt' });
+    }
+};
+exports.getPromptEcoPreview = getPromptEcoPreview;
 //# sourceMappingURL=promptController.js.map

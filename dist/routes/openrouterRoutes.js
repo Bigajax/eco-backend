@@ -112,9 +112,14 @@ router.post("/ask-eco", async (req, res) => {
         return res.status(200).json({ message: resposta2.message });
     }
     catch (err) {
-        console.error("❌ Erro no /ask-eco:", err.message || err);
+        console.error("❌ Erro no /ask-eco:", err);
         return res.status(500).json({
             error: "Erro interno ao processar a requisição.",
+            details: {
+                message: err?.message,
+                stack: err?.stack,
+                raw: err,
+            }
         });
     }
 });

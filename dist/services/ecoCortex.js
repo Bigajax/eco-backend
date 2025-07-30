@@ -13,6 +13,7 @@ const embeddingService_1 = require("./embeddingService");
 const respostaSaudacaoAutomatica_1 = require("../utils/respostaSaudacaoAutomatica");
 const heuristicaService_1 = require("./heuristicaService");
 const referenciasService_1 = require("./referenciasService");
+const mixpanelEvents_1 = require("../analytics/events/mixpanelEvents");
 // UTILS
 const mapRoleForOpenAI = (role) => {
     if (role === "model")
@@ -75,6 +76,7 @@ Retorne neste formato JSON puro:
   "dominio_vida": "",
   "padrao_comportamental": "",
   "nivel_abertura": "baixo" | "médio" | "alto",
+  "categoria": "",
   "analise_resumo": ""
 }
 
@@ -108,6 +110,7 @@ Retorne neste formato JSON puro:
             "dominio_vida",
             "padrao_comportamental",
             "nivel_abertura",
+            "categoria",
             "analise_resumo",
         ];
         const cleanJson = {};
@@ -149,8 +152,6 @@ async function getEcoResponse({ messages, userId, userName, accessToken, mems = 
             forcarMetodoViva,
             blocoTecnicoForcado,
         });
-        console.log('==== SYSTEM PROMPT USADO ====');
-        console.log(systemPrompt);
         const chatMessages = [
             { role: "system", content: systemPrompt },
             ...messages.map((m) => ({
@@ -158,6 +159,7 @@ async function getEcoResponse({ messages, userId, userName, accessToken, mems = 
                 content: m.content,
             })),
         ];
+        const inicioEco = Date.now();
         const { data } = await axios_1.default.post("https://openrouter.ai/api/v1/chat/completions", {
             model: "openai/gpt-4o",
             messages: chatMessages,
@@ -173,38 +175,40 @@ async function getEcoResponse({ messages, userId, userName, accessToken, mems = 
                 "HTTP-Referer": "http://localhost:5173",
             },
         });
+        const duracaoEco = Date.now() - inicioEco;
+        if (duracaoEco > 3000) {
+            (0, mixpanelEvents_1.trackEcoDemorou)({
+                userId,
+                duracaoMs: duracaoEco,
+                ultimaMsg,
+            });
+        }
         const raw = data?.choices?.[0]?.message?.content ?? "";
         if (!raw)
             throw new Error("Resposta vazia da IA.");
-        const cleaned = formatarTextoEco(limparResposta(raw));
-        if (forcarMetodoViva) {
-            console.log("✅ Rodada forçada (METODO_VIVA). Pulando salvar no banco.");
-            return { message: cleaned };
-        }
-        const bloco = await gerarBlocoTecnicoSeparado({
-            mensagemUsuario: ultimaMsg,
-            respostaIa: cleaned,
-            apiKey,
+        (0, mixpanelEvents_1.trackMensagemEnviada)({
+            userId,
+            tempoRespostaMs: typeof data?.created === 'number' && typeof data?.usage?.prompt_tokens === 'number'
+                ? data.created - data.usage.prompt_tokens
+                : undefined,
+            tokensUsados: data?.usage?.total_tokens || null,
+            modelo: data?.model || "desconhecido",
         });
-        // 🔥 NOVO TRECHO: checa intensidade e força segunda rodada
-        if (bloco && bloco.intensidade >= 7) {
-            console.log(`⚡ Intensidade alta detectada (${bloco.intensidade}), iniciando segunda rodada METODO_VIVA...`);
-            const vivaResponse = await getEcoResponse({
-                messages,
-                userId,
-                userName,
-                accessToken,
-                mems,
-                forcarMetodoViva: true,
-                blocoTecnicoForcado: bloco,
-            });
-            return vivaResponse;
-        }
-        let intensidade;
-        let emocao = "indefinida";
-        let tags = [];
-        let resumo = cleaned;
-        if (bloco) {
+        const cleaned = formatarTextoEco(limparResposta(raw));
+        // ⚠️ Aqui está o conserto: definimos o bloco técnico agora
+        const bloco = blocoTecnicoForcado ||
+            (await gerarBlocoTecnicoSeparado({
+                mensagemUsuario: ultimaMsg,
+                respostaIa: cleaned,
+                apiKey,
+            }));
+        if (bloco && bloco.intensidade !== undefined) {
+            let intensidade;
+            let emocao = "indefinida";
+            let tags = [];
+            let resumo = typeof bloco?.analise_resumo === "string" && bloco.analise_resumo.trim().length > 0
+                ? bloco.analise_resumo.trim()
+                : cleaned;
             intensidade = Number(bloco.intensidade);
             if (!isNaN(intensidade)) {
                 intensidade = Math.round(intensidade);
@@ -223,7 +227,30 @@ async function getEcoResponse({ messages, userId, userName, accessToken, mems = 
                         : bloco.nivel_abertura === "alto"
                             ? 3
                             : null;
-            const textoParaEmbedding = [cleaned, bloco.analise_resumo ?? ""].join("\n");
+            if (nivelNumerico === 3) {
+                (0, mixpanelEvents_1.trackPerguntaProfunda)({
+                    userId,
+                    emocao,
+                    intensidade,
+                    categoria: bloco.categoria ?? null,
+                    dominioVida: bloco.dominio_vida ?? null,
+                });
+            }
+            const cleanedSafe = typeof cleaned === "string" ? cleaned.trim() : "";
+            const analiseResumoSafe = typeof bloco?.analise_resumo === "string"
+                ? bloco.analise_resumo.trim()
+                : "";
+            let textoParaEmbedding = [cleanedSafe, analiseResumoSafe]
+                .filter((s) => typeof s === "string" && s.trim().length > 0)
+                .join("\n")
+                .trim();
+            if (!textoParaEmbedding || textoParaEmbedding.length < 3) {
+                textoParaEmbedding = "PLACEHOLDER EMBEDDING";
+            }
+            else {
+                textoParaEmbedding = textoParaEmbedding.slice(0, 8000);
+            }
+            console.log("🧭 Texto final para embed:", textoParaEmbedding);
             const embeddingFinal = await (0, embeddingService_1.embedTextoCompleto)(textoParaEmbedding, "memoria ou referencia");
             let referenciaAnteriorId = null;
             if (userId) {
@@ -246,6 +273,7 @@ async function getEcoResponse({ messages, userId, userName, accessToken, mems = 
                 dominio_vida: bloco.dominio_vida ?? null,
                 padrao_comportamental: bloco.padrao_comportamental ?? null,
                 nivel_abertura: nivelNumerico,
+                categoria: bloco.categoria ?? null,
                 analise_resumo: bloco.analise_resumo ?? null,
                 tags,
                 embedding: embeddingFinal,
@@ -260,6 +288,13 @@ async function getEcoResponse({ messages, userId, userName, accessToken, mems = 
                             created_at: new Date().toISOString(),
                         },
                     ]);
+                    (0, mixpanelEvents_1.trackMemoriaRegistrada)({
+                        userId,
+                        intensidade,
+                        emocao,
+                        dominioVida: bloco.dominio_vida ?? null,
+                        categoria: bloco.categoria ?? null,
+                    });
                     if (error) {
                         console.warn("⚠️ Erro ao salvar memória:", error.message);
                     }
@@ -279,12 +314,33 @@ async function getEcoResponse({ messages, userId, userName, accessToken, mems = 
                     await (0, referenciasService_1.salvarReferenciaTemporaria)(payload);
                     console.log(`📎 Referência emocional leve registrada para ${userId}`);
                 }
+                (0, mixpanelEvents_1.trackReferenciaEmocional)({
+                    userId,
+                    intensidade,
+                    emocao,
+                    tags,
+                    categoria: bloco.categoria ?? null,
+                });
             }
             else {
                 console.warn("⚠️ Intensidade não definida ou inválida. Nada será salvo no banco.");
             }
+            const categoria = bloco.categoria ?? null;
+            return {
+                message: cleaned,
+                intensidade: bloco?.intensidade ?? undefined,
+                resumo: bloco?.analise_resumo ?? cleaned,
+                emocao: bloco?.emocao_principal ?? "indefinida",
+                tags: bloco?.tags ?? [],
+                categoria: bloco?.categoria ?? null,
+            };
         }
-        return { message: cleaned, intensidade, resumo, emocao, tags };
+        console.log("🧩 BLOCO TÉCNICO:", bloco);
+        // 🟡 Caso não seja rodada forçada e não tenha intensidade relevante, apenas retorne a resposta limpa.
+        return {
+            message: cleaned,
+            categoria: bloco ? bloco.categoria ?? null : null,
+        };
     }
     catch (err) {
         console.error("❌ getEcoResponse error:", err.message || err);
