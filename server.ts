@@ -20,9 +20,13 @@ const PORT = process.env.PORT || 3001;
 
 // 🔐 CORS
 app.use(cors({
-  origin: 'http://localhost:5173',
+  origin: [
+    process.env.FRONTEND_URL || '',            // Produção (Vercel)
+    'http://localhost:5173'                    // Desenvolvimento local
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 // 📦 Body parsing
