@@ -3,7 +3,6 @@ import path from 'path';
 
 const filePath = path.join(__dirname, '../data/emotionCoordinates.json');
 
-// ✅ Garante que o arquivo e a pasta existam
 if (!fs.existsSync(filePath)) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, '{}', 'utf-8');
