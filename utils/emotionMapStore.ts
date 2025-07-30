@@ -3,7 +3,13 @@ import path from 'path';
 
 const filePath = path.join(__dirname, '../data/emotionCoordinates.json');
 
-export function loadEmotionCoordinates() {
+// ✅ Garante que o arquivo e a pasta existam
+if (!fs.existsSync(filePath)) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, '{}', 'utf-8');
+}
+
+export function loadEmotionStore(): Record<string, { valencia: number; excitacao: number }> {
   try {
     const raw = fs.readFileSync(filePath, 'utf-8');
     return JSON.parse(raw);
@@ -13,22 +19,10 @@ export function loadEmotionCoordinates() {
   }
 }
 
-export function saveEmotionCoordinates(data: Record<string, any>) {
+export function saveEmotionStore(data: Record<string, { valencia: number; excitacao: number }>) {
   try {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
   } catch (err) {
     console.error('⚠️ Erro escrevendo emotionCoordinates.json', err);
   }
-}
-
-/**
- * Gera uma cor pastel consistente com base no nome
- */
-export function generateConsistentPastelColor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) {
-    hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 50%, 80%)`;
 }
