@@ -81,27 +81,21 @@ router.post('/registrar', async (req, res) => {
   }
 
   try {
-    // 🟢 Decide a tabela com base na intensidade
     const destinoTabela = intensidade >= 7 ? 'memories' : 'referencias_temporarias';
 
-    // ✅ Gerar tags automaticamente se não vieram
-let finalTags: string[] = Array.isArray(tags) ? tags : [];
-if (finalTags.length === 0) {
-  finalTags = await gerarTagsAutomaticasViaIA(texto);
-}
+    let finalTags: string[] = Array.isArray(tags) ? tags : [];
+    if (finalTags.length === 0) {
+      finalTags = await gerarTagsAutomaticasViaIA(texto);
+    }
 
-
-    // ✅ Gerar os dois embeddings
     const embedding_semantico = await embedTextoCompleto(texto);
     const embedding_emocional = await embedTextoCompleto(analise_resumo ?? texto);
 
-    // 🔎 Calcular heurística de abertura
     const nivelCalc =
       typeof nivel_abertura === 'number'
         ? nivel_abertura
         : heuristicaNivelAbertura(texto);
 
-    // 🗂️ Inserir no banco
     const { data, error } = await supabaseAdmin
       .from(destinoTabela)
       .insert([{
@@ -192,16 +186,16 @@ router.post('/similares', async (req, res) => {
 
   const { texto, analise_resumo, limite = 5 } = req.body;
 
+  console.log('📩 Requisição recebida em /similares:', req.body);
+
   if (!texto || typeof texto !== 'string') {
     return res.status(400).json({ erro: 'Texto para análise é obrigatório.' });
   }
 
   try {
-    // 🟢 Gerar embeddings de consulta
     const embedding_semantico = await embedTextoCompleto(texto);
     const embedding_emocional = await embedTextoCompleto(analise_resumo ?? texto);
 
-    // 🟢 Chamar função RPC com priorização temporal + score duplo
     const { data, error } = await supabaseAdmin.rpc(
       'buscar_memorias_semelhantes',
       {
@@ -224,6 +218,5 @@ router.post('/similares', async (req, res) => {
     return res.status(500).json({ erro: 'Erro inesperado no servidor.' });
   }
 });
-
 
 export default router;
